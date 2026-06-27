@@ -1,0 +1,40 @@
+{
+  "name": "koishi-plugin-febfrost-arknights-info",
+  "description": "FebFrost Arknights operator information and scheduled group pushes.",
+  "version": "0.0.1",
+  "main": "lib/index.js",
+  "typings": "lib/index.d.ts",
+  "files": [
+    "lib",
+    "dist"
+  ],
+  "license": "MIT",
+  "keywords": [
+    "chatbot",
+    "koishi",
+    "plugin",
+    "arknights"
+  ],
+  "peerDependencies": {
+    "koishi": "^4.17.11"
+  },
+  "dependencies": {
+    "ark-info": "^0.1.1",
+    "koishi-plugin-cron": "^3.1.0",
+    "koishi-plugin-puppeteer": "^3.9.0"
+  },
+  "directories": {
+    "lib": "lib"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run --config vitest.config.ts",
+    "test:dev": "vitest run --config vitest.config.ts",
+    "test:watch": "vitest --config vitest.config.ts"
+  },
+  "author": "FebFrost",
+  "devDependencies": {
+    "typescript": "^5.5.4",
+    "vitest": "^4.1.9"
+  }
+}
