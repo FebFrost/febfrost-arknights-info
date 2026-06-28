@@ -6,6 +6,8 @@ import { formatDisplayDate, formatOperatorName } from './birthday'
 import type { OperatorAvatarMap } from './assets'
 import {} from 'koishi-plugin-puppeteer'
 
+const WEEKDAY_NAMES = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
+
 function escapeHtml(value: string) {
   return value
     .replace(/&/g, '&amp;')
@@ -53,46 +55,48 @@ function baseHtml(body: string) {
     body {
       margin: 0;
       width: max-content;
-      min-width: 720px;
       background: transparent;
       font-family: "Microsoft YaHei", "PingFang SC", Arial, sans-serif;
       color: #1f2933;
     }
     #birthday-card {
       width: max-content;
-      min-width: 720px;
       max-width: 1120px;
-      padding: 28px;
-      background: linear-gradient(135deg, #f6f8fb 0%, #ffffff 42%, #eef5f8 100%);
-      border: 1px solid #d5dde5;
+      padding: 16px;
+      background:
+        linear-gradient(135deg, rgba(255, 255, 255, 0.94) 0%, rgba(244, 248, 250, 0.96) 100%),
+        repeating-linear-gradient(135deg, rgba(23, 79, 99, 0.06) 0 1px, transparent 1px 14px);
+      border: 1px solid #c9d4dc;
       border-radius: 8px;
-      box-shadow: 0 12px 32px rgba(35, 45, 60, 0.14);
+      box-shadow: 0 12px 28px rgba(35, 45, 60, 0.12);
     }
     .today-card {
-      display: flex;
-      align-items: center;
-      gap: 24px;
+      padding: 8px;
     }
     .avatar-row {
       display: flex;
       align-items: center;
-      gap: 14px;
+      gap: 12px;
       flex-wrap: wrap;
     }
     .operator {
-      width: 92px;
+      width: 88px;
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 8px;
+      gap: 7px;
     }
     .avatar {
-      width: 76px;
-      height: 76px;
+      width: 72px;
+      height: 72px;
       border-radius: 8px;
       overflow: hidden;
-      background: #dde5ec;
-      border: 1px solid #bdc9d4;
+      background:
+        linear-gradient(180deg, #eef3f6 0%, #d9e3ea 100%);
+      border: 1px solid #aebec9;
+      box-shadow:
+        0 6px 14px rgba(30, 46, 58, 0.16),
+        inset 0 1px 0 rgba(255, 255, 255, 0.72);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -119,46 +123,96 @@ function baseHtml(body: string) {
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-    }
-    .today-text {
-      min-width: 320px;
-      max-width: 560px;
-      font-size: 30px;
-      font-weight: 800;
-      line-height: 1.35;
-    }
-    .muted {
-      margin-top: 8px;
-      font-size: 18px;
-      font-weight: 500;
-      color: #667586;
+      color: #263541;
     }
     .week-title {
-      margin-bottom: 18px;
-      font-size: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 28px;
+      margin-bottom: 14px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid #dce3ea;
+      font-size: 25px;
       font-weight: 800;
+      color: #1f2d38;
+    }
+    .week-subtitle {
+      font-size: 15px;
+      font-weight: 700;
+      color: #6f7f8e;
+    }
+    .day-grid {
+      display: flex;
+      gap: 12px;
+      align-items: start;
+      width: 924px;
+    }
+    .day-column {
+      width: 300px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
     }
     .day-row {
-      display: grid;
-      grid-template-columns: 124px 1fr;
-      gap: 18px;
-      align-items: center;
-      padding: 16px 0;
-      border-top: 1px solid #dce3ea;
-    }
-    .day-row:first-of-type { border-top: 0; }
-    .day-title {
-      padding: 8px 10px;
+      width: 300px;
+      min-height: 120px;
+      padding: 10px;
+      border: 1px solid #d7e0e7;
       border-radius: 8px;
-      font-size: 19px;
+      background: rgba(255, 255, 255, 0.54);
+    }
+    .day-tone-0 { background: #f7f3ea; border-color: #e2d7c2; }
+    .day-tone-1 { background: #eef5f1; border-color: #cbded3; }
+    .day-tone-2 { background: #f0f5fa; border-color: #ccdbe7; }
+    .day-tone-3 { background: #f6f2f8; border-color: #dccfe5; }
+    .day-tone-4 { background: #f5f4ed; border-color: #ded8bd; }
+    .day-tone-5 { background: #eff5f7; border-color: #cbe0e5; }
+    .day-tone-6 { background: #f7f1f1; border-color: #e3d0d0; }
+    .day-title {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+      width: max-content;
+      min-width: 82px;
+      padding: 7px 8px;
+      margin-bottom: 10px;
+      border-radius: 8px;
+      font-size: 16px;
       font-weight: 800;
       text-align: center;
-      background: #e6edf2;
+      background: #e7eef3;
+      border: 1px solid #d2dde5;
       color: #263541;
+    }
+    .weekday {
+      font-size: 12px;
+      font-weight: 700;
+      color: #687986;
     }
     .day-row.is-today .day-title {
       background: #174f63;
+      border-color: #174f63;
       color: #ffffff;
+      box-shadow: 0 6px 16px rgba(23, 79, 99, 0.22);
+    }
+    .day-row.is-today {
+      border-color: rgba(23, 79, 99, 0.48);
+      box-shadow: 0 8px 20px rgba(23, 79, 99, 0.12);
+    }
+    .day-row.is-today .weekday {
+      color: rgba(255, 255, 255, 0.78);
+    }
+    .day-row .avatar-row {
+      align-items: flex-start;
+      gap: 10px;
+    }
+    .day-row .operator {
+      width: 84px;
+    }
+    .day-row .avatar {
+      width: 68px;
+      height: 68px;
     }
     .empty {
       color: #81909f;
@@ -173,30 +227,68 @@ function baseHtml(body: string) {
 export function createTodayBirthdayHtml(day: BirthdayDay, avatars: OperatorAvatarMap) {
   const body = `
     <main id="birthday-card" class="today-card">
-      <section class="avatar-row">${day.entries.length ? avatarHtml(day, avatars) : ''}</section>
+      <section class="avatar-row">${day.entries.length ? avatarHtml(day, avatars) : '<div class="empty">暂无</div>'}</section>
     </main>
   `
   return baseHtml(body)
 }
 
-export function createWeekBirthdayHtml(days: BirthdayDay[], avatars: OperatorAvatarMap, today = new Date(), includeEmptyDays = false) {
-  const todayKey = `${today.getMonth() + 1}-${today.getDate()}`
+function estimateDayCardHeight(day: BirthdayDay) {
+  const rowCount = Math.max(1, Math.ceil(Math.max(1, day.entries.length) / 3))
+  return 58 + rowCount * 94
+}
+
+function distributeDays(days: BirthdayDay[], columnCount = 3) {
+  const columns = Array.from({ length: columnCount }, () => ({
+    height: 0,
+    days: [] as BirthdayDay[],
+  }))
+
+  for (const day of days) {
+    const target = columns.reduce((shortest, column) => {
+      return column.height < shortest.height ? column : shortest
+    }, columns[0])
+
+    target.days.push(day)
+    target.height += estimateDayCardHeight(day)
+  }
+
+  return columns.map((column) => column.days)
+}
+
+function formatDayTitle(date: Date) {
+  return `${escapeHtml(formatDisplayDate(date))}<span class="weekday">${WEEKDAY_NAMES[date.getDay()]}</span>`
+}
+
+export function createWeekBirthdayHtml(days: BirthdayDay[], avatars: OperatorAvatarMap, includeEmptyDays = false, title = '本周生日干员', highlightDate = new Date()) {
+  const highlightKey = `${highlightDate.getMonth() + 1}-${highlightDate.getDate()}`
   const visibleDays = includeEmptyDays ? days : days.filter((day) => day.entries.length > 0)
-  const rows = visibleDays.map((day) => {
+  const renderDay = (day: BirthdayDay) => {
     const dayKey = `${day.date.getMonth() + 1}-${day.date.getDate()}`
-    const isToday = dayKey === todayKey
+    const isToday = dayKey === highlightKey
     return `
-      <section class="day-row${isToday ? ' is-today' : ''}">
-        <div class="day-title">${escapeHtml(formatDisplayDate(day.date))}</div>
+      <section class="day-row day-tone-${day.date.getDay()}${isToday ? ' is-today' : ''}">
+        <div class="day-title">${formatDayTitle(day.date)}</div>
         <div class="avatar-row">${avatarHtml(day, avatars)}</div>
       </section>
     `
-  }).join('')
+  }
+  const columns = distributeDays(visibleDays)
+  const columnHtml = columns
+    .filter((column) => column.length > 0)
+    .map((column) => `<div class="day-column">${column.map(renderDay).join('')}</div>`)
+    .join('')
 
   const body = `
     <main id="birthday-card">
-      <header class="week-title">本周生日干员</header>
-      ${rows || '<section class="empty">本周暂无干员生日。</section>'}
+      <header class="week-title">
+        <span>${escapeHtml(title)}</span>
+        <span class="week-subtitle">${escapeHtml(formatDisplayDate(days[0].date))} - ${escapeHtml(formatDisplayDate(days[days.length - 1].date))}</span>
+      </header>
+      ${columnHtml
+        ? `<section class="day-grid">${columnHtml}</section>`
+        : '<section class="empty">本周暂无干员生日。</section>'
+      }
     </main>
   `
   return baseHtml(body)

@@ -1,6 +1,13 @@
 import type { BirthdayEntry } from 'ark-info'
 
-export type BirthdayRangeKind = 'today' | 'week'
+export type BirthdayRangeKind = 'today' | 'day' | 'week' | 'month'
+
+export interface BirthdayQuery {
+  range: BirthdayRangeKind
+  date: Date
+  label: string
+  title: string
+}
 
 export interface BirthdayDay {
   date: Date
@@ -20,6 +27,10 @@ export function formatDisplayDate(date: Date) {
   return `${date.getMonth() + 1}月${date.getDate()}日`
 }
 
+export function formatDisplayMonth(date: Date) {
+  return `${date.getMonth() + 1}月`
+}
+
 export function startOfLocalDay(date: Date) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate())
 }
@@ -36,6 +47,112 @@ export function getWeekDates(date: Date) {
     next.setDate(monday.getDate() + index)
     return next
   })
+}
+
+export function getMonthDates(date: Date) {
+  const start = new Date(date.getFullYear(), date.getMonth(), 1)
+  const days: Date[] = []
+  for (let next = new Date(start); next.getMonth() === start.getMonth(); next.setDate(next.getDate() + 1)) {
+    days.push(new Date(next))
+  }
+  return days
+}
+
+export function addDays(date: Date, days: number) {
+  const next = startOfLocalDay(date)
+  next.setDate(next.getDate() + days)
+  return next
+}
+
+export function addWeeks(date: Date, weeks: number) {
+  return addDays(date, weeks * 7)
+}
+
+export function addMonths(date: Date, months: number) {
+  return new Date(date.getFullYear(), date.getMonth() + months, 1)
+}
+
+function parseRepeatedOffset(input: string, unit: '周' | '月') {
+  if (input === '本' || input === '这' || input === '今') return 0
+  if (input === `本${unit}` || input === `这${unit}` || input === `今${unit}` || input === `这个${unit}`) return 0
+  if (/^上+$/.test(input)) return -input.length
+  if (/^下+$/.test(input)) return input.length
+  return null
+}
+
+function createDayQuery(date: Date, label: string): BirthdayQuery {
+  return {
+    range: 'day',
+    date: startOfLocalDay(date),
+    label,
+    title: `${label}生日干员`,
+  }
+}
+
+function createWeekQuery(date: Date, label: string): BirthdayQuery {
+  const week = getWeekDates(date)
+  return {
+    range: 'week',
+    date: startOfLocalDay(date),
+    label,
+    title: `${label}生日干员 (${formatDisplayDate(week[0])} - ${formatDisplayDate(week[week.length - 1])})`,
+  }
+}
+
+function createMonthQuery(date: Date, label: string): BirthdayQuery {
+  return {
+    range: 'month',
+    date: new Date(date.getFullYear(), date.getMonth(), 1),
+    label,
+    title: `${label}生日干员`,
+  }
+}
+
+export function parseBirthdayQuery(content: string, now = new Date()): BirthdayQuery | null {
+  const input = content.trim().replace(/\s+/g, '')
+
+  const relativeDay = input.match(/^(今日|今天|明天|后天|后日|昨天|昨日)(?:生日)?干员$/)
+  if (relativeDay) {
+    const text = relativeDay[1]
+    const offsetMap: Record<string, number> = {
+      今日: 0,
+      今天: 0,
+      明天: 1,
+      后天: 2,
+      后日: 2,
+      昨天: -1,
+      昨日: -1,
+    }
+    return createDayQuery(addDays(now, offsetMap[text]), text)
+  }
+
+  const date = input.match(/^(\d{1,2})(?:[.\/-]|月)(\d{1,2})(?:日)?(?:生日)?干员$/)
+  if (date) {
+    const month = Number(date[1])
+    const day = Number(date[2])
+    const parsed = new Date(now.getFullYear(), month - 1, day)
+    if (parsed.getMonth() === month - 1 && parsed.getDate() === day) {
+      return createDayQuery(parsed, formatDisplayDate(parsed))
+    }
+    return null
+  }
+
+  const week = input.match(/^((?:上+|下+|本|这|今)周)(?:生日)?干员$/)
+  if (week) {
+    const unitText = week[1].replace(/周$/, '')
+    const offset = parseRepeatedOffset(unitText, '周')
+    if (offset !== null) return createWeekQuery(addWeeks(now, offset), week[1])
+  }
+
+  const month = input.match(/^((?:上+|下+|本|这|今)月|这个月)(?:生日)?干员$/)
+  if (month) {
+    const text = month[1]
+    const unitText = text === '这个月' ? text : text.replace(/月$/, '')
+    const offset = parseRepeatedOffset(unitText, '月')
+    if (offset !== null) return createMonthQuery(addMonths(now, offset), text)
+  }
+
+  return null
 }
 
 export function getEntryDateKey(entry: BirthdayEntry) {

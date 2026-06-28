@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { BirthdayEntry } from 'ark-info'
-import { formatBirthdayMessage, getWeekDates, groupBirthdayEntries } from './birthday'
+import { formatBirthdayMessage, getMonthDates, getWeekDates, groupBirthdayEntries, parseBirthdayQuery } from './birthday'
 
 const entries: BirthdayEntry[] = [
   {
@@ -49,5 +49,37 @@ describe('birthday domain', () => {
     expect(formatBirthdayMessage('week', days)).toContain('12月23日：阿米娅 (Amiya)')
     expect(formatBirthdayMessage('week', days)).toContain('12月25日：煌 (Blaze)')
     expect(formatBirthdayMessage('week', days)).not.toContain('12月24日：暂无')
+  })
+
+  it('parses relative day birthday queries', () => {
+    const now = new Date(2026, 5, 17)
+
+    expect(parseBirthdayQuery('明天生日干员', now)).toMatchObject({
+      range: 'day',
+      label: '明天',
+    })
+    expect(parseBirthdayQuery('后日干员', now)?.date.getDate()).toBe(19)
+    expect(parseBirthdayQuery('昨天干员', now)?.date.getDate()).toBe(16)
+  })
+
+  it('parses explicit day birthday queries', () => {
+    const query = parseBirthdayQuery('6月17日生日干员', new Date(2026, 0, 1))
+
+    expect(query).toMatchObject({
+      range: 'day',
+      label: '6月17日',
+    })
+  })
+
+  it('parses week and month birthday queries', () => {
+    const now = new Date(2026, 5, 17)
+
+    expect(parseBirthdayQuery('上上周生日干员', now)).toMatchObject({ range: 'week', label: '上上周' })
+    expect(parseBirthdayQuery('今周干员', now)).toMatchObject({ range: 'week', label: '今周' })
+    expect(parseBirthdayQuery('下月生日干员', now)).toMatchObject({ range: 'month', label: '下月' })
+  })
+
+  it('creates all days in a month', () => {
+    expect(getMonthDates(new Date(2026, 1, 12))).toHaveLength(28)
   })
 })
