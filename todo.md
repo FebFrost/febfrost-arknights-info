@@ -31,6 +31,25 @@
 - [ ] 记录每次推送成功/失败明细，便于排查白名单群聊配置。
 - [ ] 视需要把生日推送渲染成图片卡片。
 
+## 消息触发方式排查（彻底修复方案）
+
+兼容修复已落地（见 `兼容修复：统一 message 路径入口` 提交）：移除
+`commandLikeQueries` 守卫，message 路径统一经 `parseBirthdayQuery` 解析，
+@bot 与非 @ 两种触发方式均可响应，且匹配规则等价。
+
+但"QQ 接收的消息全部得 @bot + 设置的 command 才能触发"这一现象的完整
+根因尚未定位。兼容修复绕开了问题，仍建议后续做彻底排查：
+
+- [ ] 确认 onebot 适配器对 @bot 消息的 content 处理：`session.content` 在
+  `ctx.on('message')` 触发时是否仍带 `@bot` 前缀（影响 message 路径是否天然
+  无法匹配命令名）。
+- [ ] 在 message 命中分支增加日志输出到本地（已加 `logger.info`），对比
+  `@bot+命令` 与 `非 @+命令` 两种场景下实际收到的 content 差异。
+- [ ] 在测试环境分别发送 `@bot 今日干员`、`今日干员`、` 今日干员 `（带空格）
+  等用例，确认两条路径的 content 一致、响应一致。
+- [ ] 若发现 onebot 未剥除 @bot 前缀导致 message 路径天然不匹配，再决定是
+  在 message 路径补前缀剥离，还是调整适配器配置。
+
 ## Feedback For ark-info
 
 - 当前首版只需要 `getBirthdayOperators({ range, date })` 返回 `name / names / birthday`。
