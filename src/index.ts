@@ -68,6 +68,9 @@ declare module 'koishi' {
 }
 
 export function apply(ctx: Context, config: PluginConfig) {
+  const baseDir = (ctx as { baseDir?: string }).baseDir || process.cwd()
+  const savedBirthday = loadPushState(baseDir).arknightsBirthday
+  if (savedBirthday && Array.isArray(savedBirthday.targetGroups)) config.targetGroups = savedBirthday.targetGroups as string[]
   const logger = ctx.logger(loggerName)
 
   ctx.model.extend('arkBirthdayCache', {
