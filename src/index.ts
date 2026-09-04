@@ -16,6 +16,8 @@ import {
 } from './birthday'
 import { resolveOperatorAvatars } from './assets'
 import { createTodayBirthdayHtml, createWeekBirthdayHtml, renderHtmlToImage } from './render'
+import { triggerTimeSection } from 'koishi-plugin-cron-text'
+import { pushToggleRegistry } from 'koishi-plugin-push-toggle'
 
 export const name = 'febfrost-arknights-info'
 export const inject = ['cron', 'database', 'puppeteer']
@@ -281,6 +283,29 @@ export function apply(ctx: Context, config: PluginConfig) {
       ])
       return '干员生日缓存已刷新。'
     })
+
+  pushToggleRegistry.register({
+    id: '干员生日推送',
+    label: '🎂 干员生日推送',
+    state: (groupId: string) => Array.isArray(config.targetGroups) && config.targetGroups.includes(groupId),
+    set: async (groupId: string, on?: boolean) => {
+      const list = Array.isArray(config.targetGroups) ? config.targetGroups : (config.targetGroups = [])
+      const current = list.includes(groupId)
+      const enabled = on === undefined ? !current : on
+      if (enabled && !current) list.push(groupId)
+      if (!enabled && current) list.splice(list.indexOf(groupId), 1)
+      const triggers = [
+        ...triggerTimeSection('每日干员生日', config.dailyCron ? [config.dailyCron] : []).lines,
+        ...triggerTimeSection('每周干员生日', config.weeklyCron ? [config.weeklyCron] : []).lines,
+      ]
+      return {
+        ok: true,
+        enabled,
+        message: enabled ? '本群已加入每日/每周干员生日推送' : '本群已移出干员生日推送',
+        triggers,
+      }
+    },
+  })
 
   ctx.cron(config.dailyCron, async () => {
     logger.info('开始执行每日干员生日推送。')
