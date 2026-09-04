@@ -17,7 +17,7 @@ import {
 import { resolveOperatorAvatars } from './assets'
 import { createTodayBirthdayHtml, createWeekBirthdayHtml, renderHtmlToImage } from './render'
 import { triggerTimeSection } from 'koishi-plugin-cron-text'
-import { pushToggleRegistry } from 'koishi-plugin-push-toggle'
+import { pushToggleRegistry, loadPushState, savePushState } from 'koishi-plugin-push-toggle'
 
 export const name = 'febfrost-arknights-info'
 export const inject = ['cron', 'database', 'puppeteer']
@@ -294,6 +294,7 @@ export function apply(ctx: Context, config: PluginConfig) {
       const enabled = on === undefined ? !current : on
       if (enabled && !current) list.push(groupId)
       if (!enabled && current) list.splice(list.indexOf(groupId), 1)
+      savePushState(baseDir, 'arknightsBirthday', { targetGroups: list })
       const triggers = [
         ...triggerTimeSection('每日干员生日', config.dailyCron ? [config.dailyCron] : []).lines,
         ...triggerTimeSection('每周干员生日', config.weeklyCron ? [config.weeklyCron] : []).lines,
