@@ -251,30 +251,41 @@ export function apply(ctx: Context, config: PluginConfig) {
       return createBirthdayResponse(parsed)
     })
 
-  const commandLikeQueries = new Set([
-    '今日生日干员',
-    '今日干员',
-    '今天生日干员',
-    '今天干员',
-    '本周生日干员',
-    '本周干员',
-    '今周生日干员',
-    '今周干员',
-    '这周生日干员',
-    '这周干员',
-    '本月生日干员',
-    '本月干员',
-    '今月生日干员',
-    '今月干员',
-    '这个月生日干员',
-    '这个月干员',
-  ])
+  // 统一消息入口：同时承接 @bot 命令触发与 QQ 非 @ 直接输入。
+  // 与 ctx.command 路径等价的匹配规则：
+  //   1. 过滤机器人自身消息，避免回复死循环；
+  //   2. parseBirthdayQuery 已覆盖所有精确命令别名（今日干员/本周干员/本月干员等），
+  //      其内部做 trim + 合并空白，与 command 路径的参数规范化行为一致；
+  //   3. 「生日干员 [query]」为带参数命令，需提取 query 后走同样的 fallback 解析链，
+  //      保证两种触发方式的解析结果完全等价。
+  const birthdayQueryPattern = /^生日干员(?:\s+(.+))?$/
 
   ctx.on('message', async (session) => {
+    if (session.userId === session.selfId) return
+
     const content = session.content?.trim()
-    if (!content || commandLikeQueries.has(content)) return
+    if (!content) return
+
+    const commandMatch = content.match(birthdayQueryPattern)
+    if (commandMatch) {
+      const queryText = (commandMatch[1] ?? '').trim()
+      const parsed = queryText
+        ? parseBirthdayQuery(queryText)
+          ?? parseBirthdayQuery(`${queryText}生日干员`)
+          ?? parseBirthdayQuery(`${queryText}干员`)
+        : parseBirthdayQuery('今天')
+      if (!parsed) {
+        await session.send('未识别查询范围，请尝试：明天生日干员、6.17干员、上周生日干员、本月干员。')
+        return
+      }
+      logger.info('干员生日查询（命令形式）：%s', queryText || '今天')
+      await session.send(await createBirthdayResponse(parsed))
+      return
+    }
+
     const query = parseBirthdayQuery(content)
     if (!query) return
+    logger.info('干员生日查询（消息匹配）：%s', content)
     await session.send(await createBirthdayResponse(query))
   })
 
