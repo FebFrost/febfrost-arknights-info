@@ -238,6 +238,8 @@ export function apply(ctx: Context, config: PluginConfig) {
 
   ctx.command('生日干员 [query:text]', '查询指定日期、周或月份生日的明日方舟干员')
     .alias('干员生日')
+    .usage('可直接发送：明天生日干员、6.17干员、上周生日干员、本月干员。')
+    .example('生日干员 明天')
     .action(async (_, query = '今天') => {
       const parsed = parseBirthdayQuery(query)
         ?? parseBirthdayQuery(`${query}生日干员`)
@@ -246,45 +248,18 @@ export function apply(ctx: Context, config: PluginConfig) {
       return createBirthdayResponse(parsed)
     })
 
-  // 统一消息入口：同时承接 @bot 命令触发与 QQ 非 @ 直接输入。
-  // 与 ctx.command 路径等价的匹配规则：
-  //   1. 过滤机器人自身消息，避免回复死循环；
-  //   2. parseBirthdayQuery 已覆盖所有精确命令别名（今日干员/本周干员/本月干员等），
-  //      其内部做 trim + 合并空白，与 command 路径的参数规范化行为一致；
-  //   3. 「生日干员 [query]」为带参数命令，需提取 query 后走同样的 fallback 解析链，
-  //      保证两种触发方式的解析结果完全等价。
-  const birthdayQueryPattern = /^生日干员(?:\s+(.+))?$/
-
-  ctx.on('message', async (session) => {
-    if (session.userId === session.selfId) return
-
-    const content = session.content?.trim()
-    if (!content) return
-
-    const commandMatch = content.match(birthdayQueryPattern)
-    if (commandMatch) {
-      const queryText = (commandMatch[1] ?? '').trim()
-      const parsed = queryText
-        ? parseBirthdayQuery(queryText)
-          ?? parseBirthdayQuery(`${queryText}生日干员`)
-          ?? parseBirthdayQuery(`${queryText}干员`)
-        : parseBirthdayQuery('今天')
-      if (!parsed) {
-        await session.send('未识别查询范围，请尝试：明天生日干员、6.17干员、上周生日干员、本月干员。')
-        return
-      }
-      logger.info('干员生日查询（命令形式）：%s', queryText || '今天')
-      await session.send(await createBirthdayResponse(parsed))
-      return
-    }
-
-    const query = parseBirthdayQuery(content)
-    if (!query) return
-    logger.info('干员生日查询（消息匹配）：%s', content)
-    await session.send(await createBirthdayResponse(query))
+  // Natural-language compatibility dispatches the same executable command once.
+  ctx.middleware(async (session, next) => {
+    if ((session.selfId && session.userId === session.selfId) || (session.stripped.hasAt && !session.stripped.atSelf)) return next()
+    const content = (session.stripped.content || session.content || '').trim().replace(/^\//, '')
+    if (/^(?:help|帮助|菜单)(?:\s|$)/i.test(content) || /(?:^|\s)(?:-h|--help)(?:\s|$)/.test(content)) return next()
+    const commandMatch = content.match(/^(?:生日干员|干员生日)(?:\s+(.+))?$/)
+    if (commandMatch) return session.execute({ name: '生日干员', args: [commandMatch[1] || '今天'] })
+    if (!parseBirthdayQuery(content)) return next()
+    return session.execute({ name: '生日干员', args: [content] })
   })
 
-  ctx.command('刷新干员生日缓存', '刷新今日和本周干员生日缓存')
+  ctx.command('刷新干员生日缓存', '刷新今日和本周干员生日缓存', { authority: 3 })
     .action(async () => {
       await Promise.all([
         fetchBirthdays('today'),
