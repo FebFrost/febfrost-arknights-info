@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Operator } from 'ark-info'
-import { parseRandomOperatorMessage, RandomOperatorLimiter, selectRandomOperator } from './random-operator'
+import { drawRandomOperator, formatOperatorTagList, getOperatorTagList, parseRandomOperatorMessage, RandomOperatorLimiter, selectRandomOperator } from './random-operator'
 
 const operators: Operator[] = [
   { name: '甲', names: { zh: '甲' }, stars: 5, profession: '先锋', releasedAt: null, nation: '谢拉格', race: '菲林', birthday: { raw: '', month: 12, day: 1 } },
@@ -34,6 +34,35 @@ describe('random operator', () => {
   it('handles birthday months across the year boundary', () => {
     expect(selectRandomOperator(operators, '本月', new Date(2026, 11, 31))?.name).toBe('甲')
     expect(selectRandomOperator(operators, '下月', new Date(2026, 11, 31))?.name).toBe('乙')
+  })
+  it('intersects profession and stars regardless of order', () => {
+    const orchid = { ...operators[0], name: '梓兰', profession: '辅助', stars: 3 }
+    const pool = [...operators, orchid, { ...orchid, name: '其他辅助', stars: 5 }]
+    expect(drawRandomOperator(pool, '辅助 3星').operator?.name).toBe('梓兰')
+    expect(drawRandomOperator(pool, '三星 辅助').operator?.name).toBe('梓兰')
+    expect(drawRandomOperator(pool, '辅助 不存在 3星').operator?.name).toBe('梓兰')
+  })
+  it('reports recognized tags with an empty intersection', () => {
+    expect(drawRandomOperator(operators, '先锋 两星', new Date(), () => 0)).toMatchObject({
+      fallback: true, matchedTags: ['先锋', '两星'], operator: { name: '甲' },
+    })
+    expect(drawRandomOperator(operators, '不存在').fallback).toBe(false)
+  })
+  it('supports standalone and qualified sub-professions with spelling aliases', () => {
+    const caster = { ...operators[1], name: '本源干员', subProfession: '本源术师' }
+    const pool = [operators[0], caster]
+    for (const query of ['本源术士', '术士-本源术士', '术师 本源术师 二星']) {
+      expect(drawRandomOperator(pool, query).operator?.name).toBe('本源干员')
+    }
+    expect(getOperatorTagList(pool, '子职业')).toEqual(['术师-本源术师'])
+  })
+  it('deduplicates tag lists, omits missing fields and limits output to 50', () => {
+    expect(getOperatorTagList(operators, '职业')).toHaveLength(2)
+    expect(getOperatorTagList(operators, '子职业')).toEqual([])
+    const pool = Array.from({ length: 52 }, (_, index) => ({ ...operators[0], race: `种族${index}` }))
+    const text = formatOperatorTagList(pool, '种族')
+    expect(text.split('……')[0].split('、')).toHaveLength(50)
+    expect(text).toContain('其余 2 个标签暂省略')
   })
   it('limits each user independently with a rolling window', () => {
     const limiter = new RandomOperatorLimiter()

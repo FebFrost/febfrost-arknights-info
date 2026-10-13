@@ -35,7 +35,7 @@ describe('random operator message entry', () => {
   it('responds without an mention and limits the eleventh request', async () => {
     const message = setup()
     for (let index = 0; index < 10; index++) {
-      const session = message('随机干员 两星')
+      const session = message('随机干员 先锋 五星')
       await session.run()
       const content = session.send.mock.calls[0][0]
       expect(content[0].type).toBe('img')
@@ -58,5 +58,21 @@ describe('random operator message entry', () => {
     const session = setup()('随机干员')
     await session.run()
     expect(session.send).toHaveBeenCalledWith('测试干员 | 5星 | 先锋')
+  })
+  it('prepends the fallback notice for valid conflicting tags', async () => {
+    const session = setup()('随机干员 先锋 两星')
+    await session.run()
+    expect(session.send.mock.calls[0][0][1]).toBe('\n（先锋-两星 无符合条件干员）\n测试干员 | 5星 | 先锋')
+  })
+  it('lists tags without consuming the draw quota or fetching avatars', async () => {
+    const message = setup()
+    for (let index = 0; index < 11; index++) {
+      const session = message('随机干员标签 职业')
+      await session.run()
+      expect(session.send).toHaveBeenCalledWith('先锋')
+    }
+    const session = message('随机干员')
+    await session.run()
+    expect(session.send.mock.calls[0][0][1]).toBe('\n测试干员 | 5星 | 先锋')
   })
 })

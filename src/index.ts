@@ -17,7 +17,7 @@ import {
 import { resolveOperatorAvatars } from './assets'
 import { createTodayBirthdayHtml, createWeekBirthdayHtml, renderHtmlToImage } from './render'
 import { loadPushToggleIntegration } from './push-toggle'
-import { parseRandomOperatorMessage, RandomOperatorLimiter, selectRandomOperator } from './random-operator'
+import { drawRandomOperator, formatOperatorTagList, parseRandomOperatorMessage, RandomOperatorLimiter, type OperatorTagCategory } from './random-operator'
 
 export const name = 'febfrost-arknights-info'
 export const inject = ['cron', 'database', 'puppeteer']
@@ -95,7 +95,7 @@ export function apply(ctx: Context, config: PluginConfig) {
     if (operatorCache.length && Date.now() - operatorCacheTime < 3_600_000) return operatorCache
     if (!operatorRequest) {
       operatorRequest = getArkInfo().then(arkInfo => arkInfo.getOperators({
-        extraFields: ['nation', 'organization', 'team', 'race', 'birthday'],
+        extraFields: ['nation', 'organization', 'team', 'race', 'birthday', 'subProfession'],
         ...(config.endpoint ? { endpoint: config.endpoint } : {}),
       })).then(operators => {
         operatorCache = operators
@@ -287,6 +287,21 @@ export function apply(ctx: Context, config: PluginConfig) {
     const content = session.content?.trim()
     if (!content) return
 
+    const tagQuery = content.match(/^随机干员标签(?:\s+(职业|子职业|势力|种族))?$/)
+    if (tagQuery) {
+      if (!tagQuery[1]) {
+        await session.send('随机干员标签 职业 / 子职业 / 势力 / 种族')
+        return
+      }
+      try {
+        await session.send(formatOperatorTagList(await getRandomOperators(), tagQuery[1] as OperatorTagCategory))
+      } catch (error) {
+        logger.warn('随机干员标签查询失败。', error)
+        await session.send('获取干员标签失败，请稍后再试。')
+      }
+      return
+    }
+
     const randomParameter = parseRandomOperatorMessage(content)
     if (randomParameter !== null) {
       if (!session.userId) return
@@ -295,12 +310,12 @@ export function apply(ctx: Context, config: PluginConfig) {
         return
       }
       try {
-        const operator = selectRandomOperator(await getRandomOperators(), randomParameter)
+        const { operator, fallback, matchedTags } = drawRandomOperator(await getRandomOperators(), randomParameter)
         if (!operator) {
           await session.send('暂未获取到干员信息，请稍后再试。')
           return
         }
-        const text = [
+        const details = [
           operator.names.zh || operator.name,
           `${operator.stars}星`,
           operator.profession,
@@ -309,6 +324,7 @@ export function apply(ctx: Context, config: PluginConfig) {
           operator.birthday?.month && operator.birthday?.day
             ? `${operator.birthday.month}月${operator.birthday.day}日` : '',
         ].filter(Boolean).join(' | ')
+        const text = (fallback ? `（${matchedTags.join('-')} 无符合条件干员）\n` : '') + details
         let avatar: string | undefined
         try {
           const arkInfo = await getArkInfo()
