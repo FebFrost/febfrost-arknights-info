@@ -300,15 +300,27 @@ export function apply(ctx: Context, config: PluginConfig) {
           await session.send('暂未获取到干员信息，请稍后再试。')
           return
         }
-        const faction = [operator.nation, operator.organization, operator.team].filter(Boolean).join(' / ')
-        await session.send([
-          `随机干员：${formatOperatorName({ ...operator, birthday: operator.birthday ?? null })}`,
-          `${operator.stars}星 ${operator.profession}`,
-          faction && `势力：${faction}`,
-          operator.race && `种族：${operator.race}`,
+        const text = [
+          operator.names.zh || operator.name,
+          `${operator.stars}星`,
+          operator.profession,
+          ...new Set([operator.nation, operator.organization, operator.team].filter(Boolean)),
+          operator.race,
           operator.birthday?.month && operator.birthday?.day
-            ? `生日：${operator.birthday.month}月${operator.birthday.day}日` : '',
-        ].filter(Boolean).join('\n'))
+            ? `${operator.birthday.month}月${operator.birthday.day}日` : '',
+        ].filter(Boolean).join(' | ')
+        let avatar: string | undefined
+        try {
+          const arkInfo = await getArkInfo()
+          const avatars = await resolveOperatorAvatars(arkInfo.getOperatorAssets, [{
+            ...operator,
+            birthday: operator.birthday ?? null,
+          }], { endpoint: config.endpoint })
+          avatar = avatars[operator.name]
+        } catch (error) {
+          logger.warn('随机干员头像获取失败。', error)
+        }
+        await session.send(avatar ? [h.image(avatar), `\n${text}`] : text)
       } catch (error) {
         logger.warn('随机干员查询失败。', error)
         await session.send('获取干员信息失败，请稍后再试。')

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { apply, type PluginConfig } from './index'
 import type { Context } from 'koishi'
+import { getOperatorAssets } from 'ark-info'
 
 vi.mock('koishi', async () => ({
   Schema: (await import('schemastery')).default,
@@ -9,6 +10,7 @@ vi.mock('koishi', async () => ({
 vi.mock('./push-toggle', () => ({ loadPushToggleIntegration: () => null }))
 vi.mock('ark-info', () => ({
   getOperators: vi.fn(async () => [{ name: '测试干员', names: { zh: '测试干员', en: 'Test' }, stars: 5, profession: '先锋', releasedAt: null }]),
+  getOperatorAssets: vi.fn(async () => [{ name: '测试干员', avatar: { url: 'https://example.test/avatar.png' }, portraits: [], skins: [] }]),
 }))
 
 function setup() {
@@ -35,7 +37,10 @@ describe('random operator message entry', () => {
     for (let index = 0; index < 10; index++) {
       const session = message('随机干员 两星')
       await session.run()
-      expect(session.send).toHaveBeenCalledWith(expect.stringContaining('测试干员 (Test)'))
+      const content = session.send.mock.calls[0][0]
+      expect(content[0].type).toBe('img')
+      expect(content[0].attrs.src).toBe('https://example.test/avatar.png')
+      expect(content[1]).toBe('\n测试干员 | 5星 | 先锋')
     }
     const limited = message('随机干员')
     await limited.run()
@@ -47,5 +52,11 @@ describe('random operator message entry', () => {
       await session.run()
       expect(session.send).not.toHaveBeenCalled()
     }
+  })
+  it('still sends the text when the avatar request fails', async () => {
+    vi.mocked(getOperatorAssets).mockRejectedValueOnce(new Error('network unavailable'))
+    const session = setup()('随机干员')
+    await session.run()
+    expect(session.send).toHaveBeenCalledWith('测试干员 | 5星 | 先锋')
   })
 })
