@@ -1,5 +1,5 @@
 import { Context, h, Schema } from 'koishi'
-import type { BirthdayEntry, GetBirthdayOperatorsOptions } from 'ark-info'
+import type { BirthdayEntry, GetBirthdayOperatorsOptions, Operator } from 'ark-info'
 import {} from 'koishi-plugin-cron'
 import {} from 'koishi-plugin-puppeteer'
 import type { BirthdayRangeKind } from './birthday'
@@ -17,6 +17,7 @@ import {
 import { resolveOperatorAvatars } from './assets'
 import { createTodayBirthdayHtml, createWeekBirthdayHtml, renderHtmlToImage } from './render'
 import { loadPushToggleIntegration } from './push-toggle'
+import { parseRandomOperatorMessage, RandomOperatorLimiter, selectRandomOperator } from './random-operator'
 
 export const name = 'febfrost-arknights-info'
 export const inject = ['cron', 'database', 'puppeteer']
@@ -84,6 +85,26 @@ export function apply(ctx: Context, config: PluginConfig) {
   })
 
   const getArkInfo = async () => import('ark-info')
+  const randomLimiter = new RandomOperatorLimiter()
+  ctx.setInterval(() => randomLimiter.prune(), 60_000)
+  let operatorCache: Operator[] = []
+  let operatorCacheTime = 0
+  let operatorRequest: Promise<Operator[]> | undefined
+
+  async function getRandomOperators() {
+    if (operatorCache.length && Date.now() - operatorCacheTime < 3_600_000) return operatorCache
+    if (!operatorRequest) {
+      operatorRequest = getArkInfo().then(arkInfo => arkInfo.getOperators({
+        extraFields: ['nation', 'organization', 'team', 'race', 'birthday'],
+        ...(config.endpoint ? { endpoint: config.endpoint } : {}),
+      })).then(operators => {
+        operatorCache = operators
+        operatorCacheTime = Date.now()
+        return operators
+      }).finally(() => { operatorRequest = undefined })
+    }
+    return operatorRequest
+  }
 
   async function fetchBirthdays(range: BirthdayRangeKind, date = new Date()) {
     const arkInfo = await getArkInfo()
@@ -265,6 +286,35 @@ export function apply(ctx: Context, config: PluginConfig) {
 
     const content = session.content?.trim()
     if (!content) return
+
+    const randomParameter = parseRandomOperatorMessage(content)
+    if (randomParameter !== null) {
+      if (!session.userId) return
+      if (!randomLimiter.take(JSON.stringify([session.platform, session.userId]))) {
+        await session.send('随机干员每人 5 分钟内最多抽取 10 次，请稍后再试。')
+        return
+      }
+      try {
+        const operator = selectRandomOperator(await getRandomOperators(), randomParameter)
+        if (!operator) {
+          await session.send('暂未获取到干员信息，请稍后再试。')
+          return
+        }
+        const faction = [operator.nation, operator.organization, operator.team].filter(Boolean).join(' / ')
+        await session.send([
+          `随机干员：${formatOperatorName({ ...operator, birthday: operator.birthday ?? null })}`,
+          `${operator.stars}星 ${operator.profession}`,
+          faction && `势力：${faction}`,
+          operator.race && `种族：${operator.race}`,
+          operator.birthday?.month && operator.birthday?.day
+            ? `生日：${operator.birthday.month}月${operator.birthday.day}日` : '',
+        ].filter(Boolean).join('\n'))
+      } catch (error) {
+        logger.warn('随机干员查询失败。', error)
+        await session.send('获取干员信息失败，请稍后再试。')
+      }
+      return
+    }
 
     const commandMatch = content.match(birthdayQueryPattern)
     if (commandMatch) {
